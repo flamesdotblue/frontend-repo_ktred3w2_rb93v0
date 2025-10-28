@@ -1,85 +1,130 @@
-import React, { useState } from 'react';
-import AdminHeader from './components/AdminHeader';
-import SectorCapsManager from './components/SectorCapsManager';
-import UtilizationUpdates from './components/UtilizationUpdates';
-import AuditTrailDashboard from './components/AuditTrailDashboard';
+import React, { useEffect, useState } from 'react';
+import Hero3D from './components/Hero3D';
+import AuthModal from './components/AuthModal';
+import AllocationPresets from './components/AllocationPresets';
+import ReceiptHistoryLite from './components/ReceiptHistoryLite';
+import { Home, Sliders, Receipt, Shield, User } from 'lucide-react';
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard');
+  const [route, setRoute] = useState('home');
+  const [authOpen, setAuthOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  const [allocState, setAllocState] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('taxflow_alloc') || '{}');
+      return saved.amount ? saved : { amount: 100000, mix: { education: 28, healthcare: 25, infrastructure: 25, defense: 15, other: 7 }, presetKey: 'recommended' };
+    } catch {
+      return { amount: 100000, mix: { education: 28, healthcare: 25, infrastructure: 25, defense: 15, other: 7 }, presetKey: 'recommended' };
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('taxflow_current_user') || 'null');
+      if (u) setUser(u);
+    } catch {}
+  }, []);
+
+  const onAuthed = (u) => setUser(u);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-900">
-      <AdminHeader activeTab={tab} onChangeTab={setTab} />
+      <TopNav current={route} onNav={setRoute} user={user} onOpenAuth={() => setAuthOpen(true)} />
 
-      {tab === 'dashboard' && <AdminDashboardOverview onGoToCaps={() => setTab('caps')} onGoToUtil={() => setTab('utilization')} onGoToAudits={() => setTab('audits')} />}
-      {tab === 'caps' && <SectorCapsManager />}
-      {tab === 'utilization' && <UtilizationUpdates />}
-      {tab === 'audits' && <AuditTrailDashboard />}
+      {route === 'home' && (
+        <>
+          <Hero3D onGetStarted={() => setRoute('allocation')} onOpenAuth={() => setAuthOpen(true)} user={user} />
+          <HomeHighlights />
+        </>
+      )}
+
+      {route === 'allocation' && (
+        <div className="py-6">
+          <AllocationPresets user={user} />
+        </div>
+      )}
+
+      {route === 'receipts' && (
+        <div className="py-6">
+          <ReceiptHistoryLite user={user} alloc={allocState} />
+        </div>
+      )}
+
+      {route === 'transparency' && <Transparency />}
+
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={onAuthed} />
 
       <footer className="mx-auto mt-16 max-w-6xl px-4 pb-10 text-center text-xs text-slate-500">
-        Built for transparency and better taxpayer experience.
+        Disclosures: Calculations are estimates; verify slab changes each FY. Privacy-first. Exports available in Profile.
       </footer>
     </div>
   );
 }
 
-function Card({ title, children, action }) {
+function TopNav({ current, onNav, user, onOpenAuth }) {
+  const items = [
+    { key: 'home', label: 'Home', icon: Home },
+    { key: 'allocation', label: 'Allocation', icon: Sliders },
+    { key: 'receipts', label: 'Receipts', icon: Receipt },
+    { key: 'transparency', label: 'Transparency', icon: Shield },
+  ];
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        {action}
+    <header className="sticky top-0 z-20 border-b border-slate-200/60 bg-white/80 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-indigo-500 to-sky-500 text-white font-bold">₹</div>
+          <div className="text-sm font-semibold">TaxFlow</div>
+        </div>
+        <nav className="flex items-center gap-1">
+          {items.map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => onNav(key)} className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm ${current === key ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>
+              <Icon size={16} /> <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3">
+          {user ? (
+            <div className="flex items-center gap-2 text-sm text-slate-700"><User size={16} /> {user.name}</div>
+          ) : (
+            <button onClick={onOpenAuth} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Sign in</button>
+          )}
+        </div>
       </div>
-      {children}
-    </div>
+    </header>
   );
 }
 
-function AdminDashboardOverview({ onGoToCaps, onGoToUtil, onGoToAudits }) {
+function HomeHighlights() {
+  const items = [
+    { title: 'Best Regime Suggestion', body: 'Compare old vs new side-by-side and get the cheaper recommendation automatically.' },
+    { title: 'Presets + Live Charts', body: 'Apply recommended or focus mixes and see the doughnut update in real-time.' },
+    { title: 'Receipts & Sharing', body: 'Generate receipts locally and export JSON. Share privacy-safe summaries.' },
+  ];
   return (
-    <main className="mx-auto max-w-6xl px-4">
-      <section className="pt-8">
-        <h2 className="text-2xl font-semibold tracking-tight">Admin Console</h2>
-        <p className="mt-1 text-sm text-slate-600">Manage sector caps, publish utilization updates, and review audit trails at a glance.</p>
-      </section>
+    <section className="mx-auto max-w-6xl px-4 py-10">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {items.map((it) => (
+          <div key={it.title} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="text-sm font-semibold">{it.title}</div>
+            <div className="mt-1 text-sm text-slate-600">{it.body}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-      <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3">
-        <Card
-          title="Sector Caps"
-          action={<button onClick={onGoToCaps} className="text-xs font-medium text-indigo-600 hover:underline">Manage</button>}
-        >
-          <p className="text-sm text-slate-600">Define policy caps that guide taxpayer allocation suggestions and ensure balance across sectors.</p>
-        </Card>
-        <Card
-          title="Utilization"
-          action={<button onClick={onGoToUtil} className="text-xs font-medium text-indigo-600 hover:underline">Open</button>}
-        >
-          <p className="text-sm text-slate-600">Publish verified spend with descriptive updates for public transparency.</p>
-        </Card>
-        <Card
-          title="Audits"
-          action={<button onClick={onGoToAudits} className="text-xs font-medium text-indigo-600 hover:underline">Review</button>}
-        >
-          <p className="text-sm text-slate-600">Search and filter an immutable trail of changes and utilization updates.</p>
-        </Card>
-      </section>
-
-      <section className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
-        <Card title="Transparency Tips">
-          <ul className="list-disc pl-5 text-sm text-slate-700">
-            <li>Provide clear, non-technical descriptions for each utilization update.</li>
-            <li>Include dates and measured outcomes to improve public trust.</li>
-            <li>Use sector caps to avoid over-concentration and maintain balance.</li>
-          </ul>
-        </Card>
-        <Card title="Next Steps">
-          <ul className="list-disc pl-5 text-sm text-slate-700">
-            <li>Connect live backend endpoints for caps and utilization sync.</li>
-            <li>Enable role-based access to restrict admin features.</li>
-            <li>Publish dashboards publicly for citizens to explore.</li>
-          </ul>
-        </Card>
-      </section>
-    </main>
+function Transparency() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-10">
+      <h2 className="text-xl font-semibold">Transparency & Disclosures</h2>
+      <ul className="mt-3 list-disc pl-5 text-sm text-slate-700">
+        <li>Data sources include Union Budget documents and public scheme dashboards.</li>
+        <li>Assumptions reflect the latest FY slabs; confirm changes each year.</li>
+        <li>Privacy: export/delete your data anytime from your device.</li>
+        <li>Accessibility: designed with AA color contrast; Hindi/regional languages coming soon.</li>
+      </ul>
+    </section>
   );
 }
